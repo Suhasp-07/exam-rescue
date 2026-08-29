@@ -1,4 +1,5 @@
 import type { EmergencyItem, PrioritizedTopic, RescueRequest, StreamMessage } from "../types";
+import { API_BASE } from "./base";
 
 /**
  * Streams the rescue pipeline as newline-delimited JSON. Each line is one
@@ -10,7 +11,7 @@ export async function streamRescue(
   onMessage: (msg: StreamMessage) => void,
   signal?: AbortSignal
 ): Promise<void> {
-  const res = await fetch("/api/rescue/stream", {
+  const res = await fetch(`${API_BASE}/api/rescue/stream`, {
     method: "POST",
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify(input),
@@ -58,7 +59,7 @@ export async function fetchEmergencyPlan(
   topics: PrioritizedTopic[],
   minutesAvailable: number
 ): Promise<EmergencyItem[]> {
-  const res = await fetch("/api/rescue/emergency", {
+  const res = await fetch(`${API_BASE}/api/rescue/emergency`, {
     method: "POST",
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify({ topics, minutesAvailable }),
