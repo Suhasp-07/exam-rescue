@@ -306,25 +306,35 @@ export async function researchSyllabus(
 
   const weakLower = weakTopics.map((w) => w.trim().toLowerCase());
   const topicsToResearch = syllabus.slice(0, MAX_TOPICS_RESEARCHED);
-  let queryIndex = 0;
 
-  for (const topic of topicsToResearch) {
+  // Run up to TOPIC_CONCURRENCY topics at once instead of one at a time.
+  // Each individual webcmd call is genuine browser automation (9-14s+), and
+  // most of that time is the browser waiting on page load (I/O), not CPU
+  // work — so overlapping a couple of topics cuts real wall-clock time
+  // without reducing a single query or topic researched. Queries *within*
+  // one topic still run one-at-a-time with a delay between them (unchanged)
+  // to avoid bursting a single topic's requests at DuckDuckGo/Bing too fast.
+  const TOPIC_CONCURRENCY = Number(process.env.WEBCMD_TOPIC_CONCURRENCY || 2);
+
+  async function researchOneTopic(topic: string): Promise<void> {
     const isWeak = weakLower.some(
       (w) => w.length > 0 && (topic.toLowerCase().includes(w) || w.includes(topic.toLowerCase()))
     );
     const queries = buildQueries(subject, topic, isWeak);
     let foundForTopic = 0;
+    let queryIndexForTopic = 0;
 
     for (const query of queries) {
       if (foundForTopic >= RESULTS_PER_TOPIC) break;
       onProgress?.({ topic, query, status: "start" });
 
-      // Space out consecutive queries to avoid tripping DuckDuckGo/Bing
-      // rate-limiting during a full multi-topic run (see WEBCMD_QUERY_DELAY_MS).
-      if (queryIndex > 0) {
+      // Space out this topic's own consecutive queries. Different topics
+      // running concurrently are NOT spaced against each other here — the
+      // TOPIC_CONCURRENCY cap above is what limits total simultaneous load.
+      if (queryIndexForTopic > 0) {
         await delay(QUERY_DELAY_MS);
       }
-      queryIndex++;
+      queryIndexForTopic++;
 
       const queryStartedAt = Date.now();
       console.log(`[research] query start: "${query}" (topic: ${topic})`);
@@ -361,6 +371,17 @@ export async function researchSyllabus(
       });
     }
   }
+
+  // Simple concurrency pool: keep up to TOPIC_CONCURRENCY topics in flight.
+  const queue = [...topicsToResearch];
+  const workers = Array.from({ length: Math.min(TOPIC_CONCURRENCY, queue.length) }, async () => {
+    while (queue.length > 0) {
+      const topic = queue.shift();
+      if (topic === undefined) break;
+      await researchOneTopic(topic);
+    }
+  });
+  await Promise.all(workers);
 
   return { resources, warnings };
 }
