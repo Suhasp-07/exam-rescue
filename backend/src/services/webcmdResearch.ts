@@ -326,7 +326,12 @@ export async function researchSyllabus(
       }
       queryIndex++;
 
+      const queryStartedAt = Date.now();
+      console.log(`[research] query start: "${query}" (topic: ${topic})`);
       const links = await runQuery(query, topic, warnings);
+      const elapsedMs = Date.now() - queryStartedAt;
+      console.log(`[research] query done in ${elapsedMs}ms: "${query}" -> ${links.length} link(s)`);
+
       onProgress?.({ topic, query, status: links.length > 0 ? "ok" : "fail" });
 
       for (const link of links) {

@@ -240,8 +240,11 @@ function extractFetchedBody(parsed: unknown): string | null {
  * skip that source and continue with others.
  */
 export async function webcmdFetch(url: string): Promise<WebcmdFetchResult> {
+  const startedAt = Date.now();
   try {
+    console.log(`[webcmd] invoking CLI for: ${url}`);
     const stdout = await runWebcmd(["web", "fetch", "--url", url, "-f", "json"]);
+    console.log(`[webcmd] CLI returned in ${Date.now() - startedAt}ms for: ${url}`);
 
     let parsed: unknown;
     try {
@@ -265,6 +268,7 @@ export async function webcmdFetch(url: string): Promise<WebcmdFetchResult> {
     return { ok: true, url, body, raw: parsed };
   } catch (err) {
     const message = err instanceof Error ? err.message : String(err);
+    console.log(`[webcmd] CLI failed after ${Date.now() - startedAt}ms for: ${url} — ${message}`);
     return { ok: false, url, code: classifyError(message), message };
   }
 }
